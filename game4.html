@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>神経衰弱ゲーム</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background-color: #f0f0f0;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    #game-board {
+      width: 720px;
+      margin: 20px auto;
+      display: grid;
+      grid-template-columns: repeat(4, 160px);
+      gap: 10px;
+    }
+    .card {
+      width: 160px;
+      height: 160px;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+    .inner {
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+      position: relative;
+    }
+    .card.flipped .inner {
+      transform: rotateY(180deg);
+    }
+    .front, .back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+    }
+    .front {
+      background-color: white;
+      transform: rotateY(180deg);
+    }
+    .back {
+      background-color: white;
+    }
+    .front img, .back img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+    }
+    
+    /* 新しく追加したスタイル */
+    #game-complete {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+    }
+    
+    #complete-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
+    
+    .btn {
+      padding: 15px 30px;
+      margin: 10px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background-color: #007bff;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #0056b3;
+      transform: translateY(-2px);
+    }
+    
+    .btn-success {
+      background-color: #28a745;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background-color: #1e7e34;
+      transform: translateY(-2px);
+    }
+    
+    .congratulations {
+      font-size: 24px;
+      color: #28a745;
+      margin-bottom: 20px;
+    }
+    
+    .matched-item {
+      display: inline-block;
+      margin: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    
+    .matched-item:hover {
+      transform: scale(1.05);
+    }
+    
+    .matched-item img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 2px solid #28a745;
+    }
+    
+    .matched-item p {
+      margin: 5px 0;
+      font-size: 14px;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    
+    #matched-items {
+      margin: 20px 0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>神経衰弱ゲーム</h1>
+  <div id="game-board"></div>
+  
+  <!-- ゲーム完了モーダル -->
+  <div id="game-complete">
+    <div id="complete-modal">
+      <div class="congratulations">🎉 おめでとうございます！ 🎉</div>
+      <p>気になる商品はありましたか？！</p>
+      
+      <div id="matched-items"></div>
+      
+      <div>
+        <button class="btn btn-primary" onclick="restartGame()">もう一度挑戦</button>
+        <button class="btn btn-success" onclick="goToAllShop()">ショップを見る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 効果音用のオーディオ要素 -->
+  <audio id="flip-sound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2Tyy+9iKBNgvfP" type="audio/wav">
+  </audio>
+  
+  <audio id="match-sound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACPiUWHcWlfc5KkqZNjKTRgp9ncp2IaBT6V3u/HdSMEK4LP89eKNgcYZ7zv5ZxMDwtRqOX1t2UcBTeL0/POfysEKILK8dyNPAgTXrbq7ahVEwpEnN7wumAcBzmS2u7PfSsFJnnI8N2PQAkUX7jq66hWFAg/m9vuxnImBiiJzfLZiTgHGWm98ueeSwwLUKfj8bllGwg+jdPzzn4tBSlxy/DdkEEKEV233OqmUhQKQ5ze8LhhGgQ+ldvuy3kpBSeDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwKS6Hf8bllGgU+ldvuy3kpBSiDyfDblDwIF2K57eqeUQwK+4qP4sIQ==" type="audio/wav">
+  </audio>
+  
+  <audio id="complete-sound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmEcBjuS2e/OfCwFJnfI8N2QQAkUXrfp66hVFApGn+DyvmP" type="audio/wav">
+  </audio>
+
+  <script>
+    const images = [
+      'item1.png', 'item2.png', 'item3.png', 'item4.png',
+      'item5.png', 'item6.png', 'item7.png', 'item8.png'
+    ];
+    const cards = [...images, ...images];
+    let firstCard = null;
+    let lock = false;
+    let matchedPairs = 0;
+    let matchedItems = []; // マッチしたアイテムを記録
+    
+    // 各アイテムの商品URL
+    const itemUrls = {
+      'item1.png': 'https://s-kaitaku.stores.jp/items/5e842ba0e20b04521d8fbf77',
+      'item2.png': 'https://s-kaitaku.stores.jp/items/63c7930f43341078845ff3d0',
+      'item3.png': 'https://s-kaitaku.stores.jp/items/63c7b508a37f7224cf7faff6',
+      'item4.png': 'https://s-kaitaku.stores.jp/items/5ede12b2515762286cf8c777',
+      'item5.png': 'https://s-kaitaku.stores.jp/items/66f0f3be2b412d0c2f1ca747',
+      'item6.png': 'https://s-kaitaku.stores.jp/items/63c255f7a37f721932955977',
+      'item7.png': 'https://s-kaitaku.stores.jp/items/66f0f52e708109162910051b',
+      'item8.png': 'https://s-kaitaku.stores.jp/items/66f0f6d42b412d0da41ca738'
+    };
+    
+    // 各アイテムの商品名
+    const itemNames = {
+      'item1.png': 'ほや味噌',
+      'item2.png': '石巻のたれ',
+      'item3.png': '海苔たらこ　頂',
+      'item4.png': 'ほやたれっシング',
+      'item5.png': '三陸さば缶',
+      'item6.png': 'くじら大和煮缶',
+      'item7.png': 'いわし缶・水煮',
+      'item8.png': 'いわし缶・醤油煮'
+    };
+    
+    // 効果音再生関数
+    function playSound(soundId) {
+      const sound = document.getElementById(soundId);
+      if (sound) {
+        sound.currentTime = 0;
+        sound.play().catch(e => console.log('音声再生に失敗:', e));
+      }
+    }
+    
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+    
+    function createCard(src) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.image = src; // データ属性に画像パスを保存
+      
+      const inner = document.createElement('div');
+      inner.className = 'inner';
+      
+      const front = document.createElement('div');
+      front.className = 'front';
+      const frontImg = document.createElement('img');
+      frontImg.src = src;
+      front.appendChild(frontImg);
+      
+      const back = document.createElement('div');
+      back.className = 'back';
+      const backImg = document.createElement('img');
+      backImg.src = 'back.png';
+      back.appendChild(backImg);
+      
+      inner.appendChild(front);
+      inner.appendChild(back);
+      card.appendChild(inner);
+      
+      card.addEventListener('click', () => {
+        if (lock || card.classList.contains('flipped')) return;
+        
+        // カードフリップ音を再生
+        playSound('flip-sound');
+        
+        card.classList.add('flipped');
+        
+        if (!firstCard) {
+          firstCard = card;
+        } else {
+          const firstImg = firstCard.querySelector('.front img').src;
+          const secondImg = card.querySelector('.front img').src;
+          lock = true;
+          
+          if (firstImg === secondImg) {
+            // マッチした場合
+            playSound('match-sound');
+            matchedPairs++;
+            
+            // マッチしたアイテムを記録
+            const imageName = firstCard.dataset.image;
+            if (!matchedItems.includes(imageName)) {
+              matchedItems.push(imageName);
+            }
+            
+            firstCard = null;
+            lock = false;
+            
+            // 全てマッチしたかチェック
+            if (matchedPairs === images.length) {
+              setTimeout(() => {
+                playSound('complete-sound');
+                showGameComplete();
+              }, 500);
+            }
+          } else {
+            // マッチしなかった場合
+            playSound('wrong-sound');
+            setTimeout(() => {
+              card.classList.remove('flipped');
+              firstCard.classList.remove('flipped');
+              firstCard = null;
+              lock = false;
+            }, 1000);
+          }
+        }
+      });
+      
+      return card;
+    }
+    
+    function showGameComplete() {
+      const modal = document.getElementById('game-complete');
+      const matchedItemsDiv = document.getElementById('matched-items');
+      
+      // マッチしたアイテムを表示
+      matchedItemsDiv.innerHTML = '';
+      matchedItems.forEach(imagePath => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'matched-item';
+        
+        const img = document.createElement('img');
+        img.src = imagePath;
+        
+        const name = document.createElement('p');
+        name.textContent = itemNames[imagePath];
+        
+        // クリックで個別商品ページへ
+        itemDiv.addEventListener('click', () => {
+          window.open(itemUrls[imagePath], '_blank');
+        });
+        
+        itemDiv.appendChild(img);
+        itemDiv.appendChild(name);
+        matchedItemsDiv.appendChild(itemDiv);
+      });
+      
+      modal.style.display = 'block';
+    }
+    
+    function restartGame() {
+      // ゲームリセット
+      matchedPairs = 0;
+      matchedItems = [];
+      firstCard = null;
+      lock = false;
+      
+      // モーダルを閉じる
+      document.getElementById('game-complete').style.display = 'none';
+      
+      // ゲームボードをクリアして再生成
+      const gameBoard = document.getElementById('game-board');
+      gameBoard.innerHTML = '';
+      
+      shuffle(cards);
+      cards.forEach(src => gameBoard.appendChild(createCard(src)));
+    }
+    
+    function goToAllShop() {
+      // メインショップページに移動
+      window.open('https://s-kaitaku.stores.jp/', '_blank');
+    }
+    
+    // 商品URLを設定する関数（外部から変更可能）
+    function setItemUrl(itemName, url) {
+      itemUrls[itemName] = url;
+    }
+    
+    // 初期化
+    const gameBoard = document.getElementById('game-board');
+    shuffle(cards);
+    cards.forEach(src => gameBoard.appendChild(createCard(src)));
+  </script>
+</body>
+</html>
